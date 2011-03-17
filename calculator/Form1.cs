@@ -13,17 +13,22 @@ namespace calculator
   public partial class Calculator : Form {
     public Calculator() {
       InitializeComponent();
-      shparser_ = new ShuntingYard();
+      shparser_ = new RPN_Calculator();
     }
 
     private void button1_Click(object sender, EventArgs e) {
       if (shparser_.ParseInput(calc_screen.Text)) {
-        MessageBox.Show(shparser_.GetRPNOutputAsString());
+        try {
+          float result = shparser_.Compute();
+          MessageBox.Show(String.Format("Result = {0}", result));
+        } catch (System.Exception except) {
+          MessageBox.Show(except.Message);
+        }
       } else {
         MessageBox.Show("Crap error");
       }
     }
 
-    private ShuntingYard shparser_;
+    private RPN_Calculator shparser_;
   }
 }
