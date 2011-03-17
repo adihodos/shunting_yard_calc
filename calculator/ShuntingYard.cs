@@ -11,18 +11,18 @@ class ShuntingYard {
     curr_state = ParserState.ParserState_Ok;
     op_stack = new Stack<CalculatorToken>(32);
     output_queue = new Stack<CalculatorToken>(32);
-    input_iterator = null;
+    input_string = null;
+    input_iter = 0;
+    input_end_marker = 0;
   }
 
   public bool ParseInput(String input) {
-    input_iterator = input.GetEnumerator();
+    input_iter = 0;
+    input_end_marker = input.Length;
+    input_string = input;
     curr_state = ParserState.ParserState_Ok;
     output_queue.Clear();
     op_stack.Clear();
-
-    if (!AdvanceToNextAtom()) {
-      return false;
-    }
 
     for (bool done = false; !done && curr_state != ParserState.ParserState_Error; ) {
       ReadNextTokenFromInput();
@@ -146,44 +146,44 @@ class ShuntingYard {
   }
 
   private void ReadNextTokenFromInput() {
-    if (curr_state == ParserState.ParserState_EndOfInput)
-      return;
-
     for (; ;) {
-      if (Char.IsWhiteSpace(input_iterator.Current)) {
-        if (!AdvanceToNextAtom())
-          return;
+      if (IsEndOfInput())
+        return;
+
+      if (Char.IsWhiteSpace(GetCurrentAtomFromInput())) {
+        AdvanceToNextAtomEx();
       } else {
         break;
       }
     }
 
-    if (TokenIsAnOperator(input_iterator.Current)) {
+    Char curr_atom = GetCurrentAtomFromInput();
+    if (TokenIsAnOperator(curr_atom)) {
       curr_state = ParserState.ParserState_Operator;
       return;
     }
 
-    if (Char.IsDigit(input_iterator.Current)) {
+    if (Char.IsDigit(curr_atom)) {
       curr_state = ParserState.ParserState_Digit;
       return;
     }
 
-    if (Char.IsLetterOrDigit(input_iterator.Current)) {
+    if (Char.IsLetterOrDigit(curr_atom)) {
       curr_state = ParserState.ParserState_Func;
       return;
     }
 
-    if (input_iterator.Current == '(') {
+    if (curr_atom == '(') {
       curr_state = ParserState.ParserState_LeftParen;
       return;
     }
 
-    if (input_iterator.Current == ')') {
+    if (curr_atom == ')') {
       curr_state = ParserState.ParserState_RightParen;
       return;
     }
 
-    if (input_iterator.Current == ',') {
+    if (curr_atom == ',') {
       curr_state = ParserState.ParserState_Comma;
       return;
     }
@@ -196,22 +196,25 @@ class ShuntingYard {
     String curr_num = "";
 
     for (; ; ) {
-      if (Char.IsDigit(input_iterator.Current)) {
-        curr_num = curr_num + input_iterator.Current;
-      } else if (input_iterator.Current == '.') {
+      if (IsEndOfInput())
+        break;
+
+      Char curr_atom = GetCurrentAtomFromInput();
+      if (Char.IsDigit(curr_atom)) {
+        curr_num = curr_num + curr_atom;
+        AdvanceToNextAtomEx();
+      } else if (curr_atom == '.') {
         if (is_float) {
           curr_state = ParserState.ParserState_Error;
           return;
         }
 
         is_float = true;
-        curr_num = curr_num + input_iterator.Current;
+        curr_num = curr_num + curr_atom;
+        AdvanceToNextAtomEx();
       } else {
         break;
-      }
-
-      if (!AdvanceToNextAtom())
-        break;
+      }      
     }
 
     Debug.Assert(curr_num.Length > 0);
@@ -225,20 +228,23 @@ class ShuntingYard {
   }
 
   private void Handle_Function() {
-    String func_name = "";
+    String func_name = null;
+    int fname_start = input_iter;
 
     for (; ; ) {
-      if (Char.IsLetterOrDigit(input_iterator.Current)) {
-        func_name = func_name + input_iterator.Current;
+      if (IsEndOfInput())
+        break;
+
+      Char curr_atom = GetCurrentAtomFromInput();
+      if (Char.IsLetterOrDigit(curr_atom)) {
+        AdvanceToNextAtomEx();
       } else {
         break;
       }
-
-      if (!AdvanceToNextAtom())
-        break;
     }
 
-    Debug.Assert(func_name.Length > 0);
+    Debug.Assert(fname_start < input_iter);
+    func_name = input_string.Substring(fname_start, input_iter - fname_start);
     if (!ValidateFunction(func_name)) {
       curr_state = ParserState.ParserState_Error;
       return;
@@ -269,11 +275,11 @@ class ShuntingYard {
       return;
     }
 
-    AdvanceToNextAtom();
+    AdvanceToNextAtomEx();
   }
 
   private void Handle_Operator() {
-    Char op1 = input_iterator.Current;
+    Char op1 = GetCurrentAtomFromInput();
 
     while (op_stack.Any() &&
            op_stack.Peek().ct_type ==
@@ -298,7 +304,7 @@ class ShuntingYard {
     };
 
     op_stack.Push(new_token);
-    AdvanceToNextAtom();
+    AdvanceToNextAtomEx();
   }
 
   private void Handle_LeftParen() {
@@ -308,7 +314,7 @@ class ShuntingYard {
       ct_func = null
     };
     op_stack.Push(new_token);
-    AdvanceToNextAtom();
+    AdvanceToNextAtomEx();
   }
 
   private void Handle_RightParen() {
@@ -336,7 +342,7 @@ class ShuntingYard {
         op_stack.Peek().ct_type == CalculatorToken.TOKEN_Type.TOKEN_Type_Function) {
       output_queue.Push(op_stack.Pop());
     }
-    AdvanceToNextAtom();
+    AdvanceToNextAtomEx();
   }
 
   private void Handle_EndOfInput() {
@@ -353,12 +359,16 @@ class ShuntingYard {
     }
   }
 
-  private bool AdvanceToNextAtom() {
-    if (input_iterator.MoveNext()) {
+  private bool IsEndOfInput() {
+    if (input_iter == input_end_marker) {
+      curr_state = ParserState.ParserState_EndOfInput;
       return true;
     }
-    curr_state = ParserState.ParserState_EndOfInput;
     return false;
+  }
+
+  private void AdvanceToNextAtomEx() {
+    ++input_iter;
   }
 
   private bool TokenIsAnOperator(Char token) {
@@ -394,10 +404,17 @@ class ShuntingYard {
     return true;
   }
 
+  private Char GetCurrentAtomFromInput() {
+    Debug.Assert(input_iter < input_end_marker);
+    return input_string[input_iter];
+  }
+
   private Stack<CalculatorToken>  op_stack;
   private Stack<CalculatorToken>  output_queue;
   private ParserState curr_state;
-  private IEnumerator<Char> input_iterator;
+  private String input_string;
+  int input_iter;
+  int input_end_marker;
 }
 
 }
