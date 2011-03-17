@@ -1,0 +1,10 @@
+Debug
+Release
+bin
+obj
+*.csproj.user
+*.suo
+*.cache
+*~
+*#
+*.swp
