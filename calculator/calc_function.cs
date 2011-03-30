@@ -109,6 +109,46 @@ namespace calculator {
     }
   }
 
+  public sealed class Function_Factorial : ICalcFunction {
+    public Function_Factorial() : base("fact", 1) { }
+
+    public override float Compute(float[] args) {
+      Debug.Assert(args.Length == ArgCount);
+      int res = 1;
+      int num = (int)args[0];
+      while (num > 1) {
+        res *= num--;
+      }
+
+      return res;
+    }
+  }
+
+  public sealed class Function_Fibonacci : ICalcFunction {
+    public Function_Fibonacci() : base("fib", 1) { }
+
+    public override float Compute(float[] args) {
+      Debug.Assert(args.Length == ArgCount);
+      Debug.Assert((int)args[0] >= 0);
+
+      if ((int)args[0] == 0 || (int)args[1] == 1) {
+        return args[0];
+      }
+
+      Int64 fib_minus_two = 0;
+      Int64 fib_minus_one = 1;
+      int index = 2;
+
+      while (index != (int)args[0]) {
+        Int64 tmp = fib_minus_one + fib_minus_two;
+        fib_minus_two = fib_minus_one;
+        fib_minus_one = tmp;
+      }
+
+      return fib_minus_one;
+    }
+  }
+
   /// <summary>
   /// Holds a collection of functions that users of the calculator can use.
   /// </summary>
@@ -174,6 +214,12 @@ namespace calculator {
       func_table_.Add(curr_func.FunctionName, curr_func);
 
       curr_func = new Function_Exp();
+      func_table_.Add(curr_func.FunctionName, curr_func);
+
+      curr_func = new Function_Factorial();
+      func_table_.Add(curr_func.FunctionName, curr_func);
+
+      curr_func = new Function_Fibonacci();
       func_table_.Add(curr_func.FunctionName, curr_func);
     }
 

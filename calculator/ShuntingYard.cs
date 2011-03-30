@@ -7,18 +7,18 @@ using System.Diagnostics;
 namespace calculator {
 
 /// <summary>
-/// Simple class that convers input from infix notation to reverse polish
+/// Simple class that converts input from infix notation to reverse polish
 /// notation (RPN), using the shunting yard algorithm (E. Dijkstra).
 /// <see cref="http://en.wikipedia.org/wiki/Shunting-yard_algorithm"/>
 /// <example>
 /// String input = new String("sin(sin(sin(tan(1 + (2*3)^4/(5*6)^2))))");
-/// RPN_Calculator parser = new RPN_Calculator();
+/// RPN_CalculatorEngine parser = new RPN_CalculatorEngine();
 /// if (parser.ParseInput(input)) {
 ///   //
 ///   // Do something with the result.
 /// }
 /// </summary>
-class RPN_Calculator {
+class RPN_CalculatorEngine {
 
   public class RPN_ArgumentException : System.Exception {
     public RPN_ArgumentException() {
@@ -66,7 +66,7 @@ class RPN_Calculator {
     private float[] args_;
   }
 
-  public RPN_Calculator() {
+  public RPN_CalculatorEngine() {
     curr_state = ParserState.ParserState_Ok;
     op_stack = new Stack<CalculatorToken>(32);
     output_queue = new Stack<CalculatorToken>(32);
@@ -232,8 +232,8 @@ class RPN_Calculator {
   /// </summary>
   private struct CalculatorToken {
     /// <summary>
-    /// Token types of out calculator 
-    /// (function - sin , cos, tan, Operator -, + *, etc)
+    /// Token types in the calculator 
+    /// (number, function - sin , cos, tan, Operator -, + *, etc)
     /// </summary>
     public enum TOKEN_Type {
       TOKEN_Type_Number,
@@ -270,7 +270,7 @@ class RPN_Calculator {
     ParserState_Operator, // -, +, *, %, etc
     ParserState_LeftParen,
     ParserState_RightParen,
-    ParserState_Comma
+    ParserState_Comma // used as an argument separator
   }
 
   /// <summary>
@@ -280,22 +280,32 @@ class RPN_Calculator {
   private void ReadNextTokenFromInput() {
     //
     // Eat any whitespaces.
-    for (; ;) {
-      if (IsEndOfInput())
-        return;
+    while (!IsEndOfInput() && Char.IsWhiteSpace(GetCurrentAtomFromInput())) {
+      AdvanceToNextAtomEx();
+    }
 
-      if (Char.IsWhiteSpace(GetCurrentAtomFromInput())) {
-        AdvanceToNextAtomEx();
-      } else {
-        break;
-      }
+    if (IsEndOfInput()) {
+      return;
     }
 
     //
     // Analyze current token and set parser's state.
     Char curr_atom = GetCurrentAtomFromInput();
-    if (Char.IsDigit(curr_atom) ||
-       (curr_atom == '-' && CanPeekNextAtomAndIsDigit())) {
+    if (curr_atom == '-' && CanPeekNextAtomAndIsDigit()) {
+      if (!op_stack.Any() || 
+          op_stack.Peek().ct_type == CalculatorToken.TOKEN_Type.TOKEN_Type_RightParen) {
+        CalculatorToken fake_plus = new CalculatorToken {
+          ct_func = "+",
+          ct_type = CalculatorToken.TOKEN_Type.TOKEN_Type_Operator,
+          ct_fval = 0.0f
+        };
+        op_stack.Push(fake_plus);
+      }
+      curr_state = ParserState.ParserState_Digit;
+      return;
+    }
+
+    if (Char.IsDigit(curr_atom)) {
       curr_state = ParserState.ParserState_Digit;
       return;
     }
@@ -506,7 +516,7 @@ class RPN_Calculator {
   }
 
   /// <summary>
-  /// Called when the parser reaches a right parenthesis into the input stream.
+  /// Called when the parser reaches a right parenthesis.
   /// </summary>
   private void Handle_RightParen() {
     bool popped_lparen = false;
